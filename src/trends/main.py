@@ -18,7 +18,7 @@ def create_app() -> FastAPI:
             "http://localhost",
             "http://127.0.0.1:5173",
             "https://radar-tendencias.onrender.com",
-            "https://homolog-admin.imirante.com",
+            "http://homolog-admin.imirante.com",
             "https://novoadmin.imirante.com",
         ],
         allow_credentials=True,
