@@ -1,11 +1,19 @@
-version: "3.9"
-
 services:
-  flask-trends:
+  app:
     build: .
-    container_name: flask-trends
-    restart: unless-stopped
+    container_name: trends_app
     ports:
       - "3000:3000"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
-      - .:/app
+      - ./src:/app/src
+
+  redis:
+    image: redis:7
+    container_name: trends_redis
+    ports:
+      - "6380:6379"

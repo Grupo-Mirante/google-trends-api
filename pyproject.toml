@@ -1,0 +1,32 @@
+[project]
+name = "trends"
+version = "0.1.0"
+description = "Google Trends FastAPI scraper"
+readme = "README.md"
+authors = [
+    { name = "Matheus Fontenele", email = "matheus.fontenele@icloud.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4==4.12.2",
+    "fastapi==0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "apscheduler>=3.10.4",
+    "gunicorn>=23.0.0",
+    "lxml[html-clean]>=6.0.2",
+    "playwright>=1.55.0",
+    "redis==5.3.1",
+    "requests==2.31.0",
+    "requests-html==0.10.0",
+    "websockets>=15.0.1",
+]
+
+[tool.uv.sources]
+trends = { path = "src/trends" }
+
+[project.scripts]
+trends = "trends.main:app"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

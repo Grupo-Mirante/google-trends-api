@@ -1,16 +1,14 @@
 import re
 
 def formatar_dados(item: dict) -> dict:
-    """
-    Recebe um item no formato bruto e devolve um dicionário formatado.
-    """
-    volume_match = re.search(r"(\d+[KMB]?\+?)", item.get("data_volume", ""))
+    """Recebe um item bruto e retorna dados formatados."""
+    volume_match = re.search(r"(\d+(?:[.,]\d+)?\s*(?:mil|M|K|B)?\+?)", item.get("data_volume", ""), flags=re.IGNORECASE)
     volume = volume_match.group(1) if volume_match else None
 
-    perc_match = re.search(r"(\d{1,3}(?:,\d{3})*%|\d+%)", item.get("data_volume", ""))
+    perc_match = re.search(r"(\d{1,3}(?:[.,]\d{3})*%|\d+%)", item.get("data_volume", ""))
     variation = perc_match.group(1) if perc_match else None
 
-    time_match = re.search(r"(\d+\s\w+\sago)", item.get("duration", ""))
+    time_match = re.search(r"(há\s+\d+\s+\w+)", item.get("duration", ""))
     duration = time_match.group(1) if time_match else None
 
     keywords_raw = item.get("keywords", [])
