@@ -10,5 +10,5 @@ async def cache_get(key: str):
     return json.loads(value) if value else None
 
 
-async def cache_set(key: str, data, expire_seconds: int = 600):
+async def cache_set(key: str, data, expire_seconds: int = 3600):
     await redis_client.set(key, json.dumps(data), ex=expire_seconds)
