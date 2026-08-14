@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Query
-from trends.core.scraper import fetch_trends
+from fastapi import APIRouter, Query, HTTPException
+from trends.core.scraper import fetch_trends, TrendsFetchError
 from trends.core.cache import cache_get, cache_set
 
 # router = APIRouter(prefix="/trends", tags=["trends"])
@@ -13,6 +13,13 @@ async def get_trends(geo: str = Query("BR"), category: int = Query(0)):
     if cached_data:
         return {"cached": True, "trends": cached_data}
 
-    data = await fetch_trends(geo, category)
+    try:
+        data = await fetch_trends(geo, category)
+    except TrendsFetchError:
+        raise HTTPException(
+            status_code=502,
+            detail="Não foi possível obter as tendências do Google Trends no momento.",
+        )
+
     await cache_set(cache_key, data)
     return {"cached": False, "trends": data}

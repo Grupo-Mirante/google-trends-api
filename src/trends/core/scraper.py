@@ -2,6 +2,10 @@ import re
 from playwright.async_api import async_playwright
 
 
+class TrendsFetchError(Exception):
+    """Levantada quando não é possível obter as tendências do Google Trends."""
+
+
 def formatar_dados(item: dict) -> dict:
     volume_match = re.search(r"(\d+(?:[.,]\d+)?\s*(?:mil|M|K|B)?\+?)", item.get("data_volume", ""), flags=re.IGNORECASE)
     volume = volume_match.group(1) if volume_match else None
@@ -29,7 +33,11 @@ def formatar_dados(item: dict) -> dict:
 
 
 async def fetch_trends(geo="BR", category=0):
-    url = f"https://trends.google.com.br/trending?geo={geo}&category={category}"
+    # O Google Trends ignora o parâmetro `category` na querystring: o filtro só é
+    # aplicado quando o dropdown de categoria é acionado no client-side. Por isso,
+    # com category != 0, precisamos abrir o dropdown e clicar na opção correspondente
+    # em vez de confiar na URL.
+    url = f"https://trends.google.com.br/trending?geo={geo}"
     data = []
     try:
         async with async_playwright() as p:
@@ -39,6 +47,20 @@ async def fetch_trends(geo="BR", category=0):
 
             await page.goto(url, timeout=60000)
             await page.wait_for_selector("tr[data-row-id]")
+
+            if category:
+                dropdown = await page.query_selector("text=Todas as categorias")
+                if dropdown:
+                    await dropdown.click()
+                    # :visible é necessário porque outros dropdowns da página (ex.: filtro
+                    # de período) reutilizam os mesmos valores numéricos em data-value
+                    # (ex.: "Últimas 4 horas" também tem data-value="4", colidindo com a
+                    # categoria Entretenimento) enquanto estão ocultos no DOM.
+                    option = await page.wait_for_selector(f'[data-value="{category}"]:visible', timeout=5000)
+                    await option.click()
+                    await page.wait_for_timeout(1000)
+                    await page.wait_for_selector("tr[data-row-id]")
+
             rows = await page.query_selector_all("tr[data-row-id]")
 
             for row in rows:
@@ -59,4 +81,4 @@ async def fetch_trends(geo="BR", category=0):
 
     except Exception as e:
         print("⚠️ Erro ao buscar dados:", e)
-        return [{"error": "erro ao buscar informações"}]
+        raise TrendsFetchError(str(e)) from e
