@@ -1,4 +1,18 @@
+import os
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+QUIET_HOURS_TZ = os.getenv("QUIET_HOURS_TZ", "America/Sao_Paulo")
+QUIET_HOURS_START = int(os.getenv("QUIET_HOURS_START", "0"))
+QUIET_HOURS_END = int(os.getenv("QUIET_HOURS_END", "6"))
+
+
+def em_horario_de_pausa(now: datetime | None = None) -> bool:
+    """Indica se o horário atual está na janela de baixo tráfego em que o Chromium não deve ser iniciado."""
+    hora_atual = (now or datetime.now(ZoneInfo(QUIET_HOURS_TZ))).hour
+    return QUIET_HOURS_START <= hora_atual < QUIET_HOURS_END
+
 
 def formatar_dados(item: dict) -> dict:
     """Recebe um item bruto e retorna dados formatados."""
