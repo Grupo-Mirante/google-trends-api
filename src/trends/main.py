@@ -1,15 +1,31 @@
-import asyncio
 import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from trends.app.routes import router as trends_router
-from trends.scheduler.jobs import update_trends_job
+from trends.scheduler.jobs import update_trends
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # AsyncIOScheduler roda o job como coroutine no mesmo event loop do
+    # worker, em vez de asyncio.run() criar/fechar um loop novo a cada
+    # disparo — isso é o que causava o RuntimeError: Event loop is closed
+    # no cliente Redis assíncrono global.
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(update_trends, "interval", minutes=10)
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.shutdown(wait=False)
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Google Trends API", version="0.1.0")
+    app = FastAPI(title="Google Trends API", version="0.1.0", lifespan=lifespan)
 
     # CORS
     app.add_middleware(
@@ -28,11 +44,6 @@ def create_app() -> FastAPI:
 
     # Rotas
     app.include_router(trends_router)
-
-    # Scheduler (APScheduler)
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(update_trends_job, "interval", minutes=10)
-    scheduler.start()
 
     return app
 

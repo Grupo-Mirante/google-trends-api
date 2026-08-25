@@ -17,7 +17,6 @@ dependencies = [
     "playwright>=1.55.0",
     "redis==5.3.1",
     "requests==2.31.0",
-    "requests-html==0.10.0",
     "websockets>=15.0.1",
 ]
 
