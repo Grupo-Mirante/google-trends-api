@@ -6,11 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from trends.app.routes import router as trends_router
+from trends.core.scraper import browser_manager
 from trends.scheduler.jobs import update_trends
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Sobe o Chromium uma única vez por worker, reutilizado entre requisições
+    # (ver BrowserManager em scraper.py) — evita o custo de launch() a cada
+    # scrape, que era o maior consumidor de CPU do sistema.
+    await browser_manager.start()
+
     # AsyncIOScheduler roda o job como coroutine no mesmo event loop do
     # worker, em vez de asyncio.run() criar/fechar um loop novo a cada
     # disparo — isso é o que causava o RuntimeError: Event loop is closed
@@ -22,6 +28,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         scheduler.shutdown(wait=False)
+        await browser_manager.shutdown()
 
 
 def create_app() -> FastAPI:
