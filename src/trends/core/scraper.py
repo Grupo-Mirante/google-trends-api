@@ -1,5 +1,12 @@
+import asyncio
 import re
 from playwright.async_api import async_playwright
+
+# Limita quantos Chromiums este worker pode ter abertos ao mesmo tempo.
+# Ver "Diagnóstico dos picos de CPU" seção I: Semaphore(2) é o equilíbrio
+# recomendado para 2 vCPU / 4 GB RAM.
+MAX_CONCURRENT_BROWSERS = 2
+_browser_semaphore = asyncio.Semaphore(MAX_CONCURRENT_BROWSERS)
 
 
 class TrendsFetchError(Exception):
@@ -39,46 +46,51 @@ async def fetch_trends(geo="BR", category=0):
     # em vez de confiar na URL.
     url = f"https://trends.google.com.br/trending?geo={geo}"
     data = []
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context()
-            page = await context.new_page()
+    async with _browser_semaphore:
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                try:
+                    context = await browser.new_context()
+                    page = await context.new_page()
 
-            await page.goto(url, timeout=60000)
-            await page.wait_for_selector("tr[data-row-id]")
-
-            if category:
-                dropdown = await page.query_selector("text=Todas as categorias")
-                if dropdown:
-                    await dropdown.click()
-                    # :visible é necessário porque outros dropdowns da página (ex.: filtro
-                    # de período) reutilizam os mesmos valores numéricos em data-value
-                    # (ex.: "Últimas 4 horas" também tem data-value="4", colidindo com a
-                    # categoria Entretenimento) enquanto estão ocultos no DOM.
-                    option = await page.wait_for_selector(f'[data-value="{category}"]:visible', timeout=5000)
-                    await option.click()
-                    await page.wait_for_timeout(1000)
+                    await page.goto(url, timeout=60000)
                     await page.wait_for_selector("tr[data-row-id]")
 
-            rows = await page.query_selector_all("tr[data-row-id]")
+                    if category:
+                        dropdown = await page.query_selector("text=Todas as categorias")
+                        if dropdown:
+                            await dropdown.click()
+                            # :visible é necessário porque outros dropdowns da página (ex.: filtro
+                            # de período) reutilizam os mesmos valores numéricos em data-value
+                            # (ex.: "Últimas 4 horas" também tem data-value="4", colidindo com a
+                            # categoria Entretenimento) enquanto estão ocultos no DOM.
+                            option = await page.wait_for_selector(f'[data-value="{category}"]:visible', timeout=5000)
+                            await option.click()
+                            await page.wait_for_timeout(1000)
+                            await page.wait_for_selector("tr[data-row-id]")
 
-            for row in rows:
-                cells = await row.query_selector_all("td")
-                if cells:
-                    text_cells = [await cell.inner_text() for cell in cells]
-                    item_data = {
-                        "index": text_cells[0],
-                        "title": text_cells[1],
-                        "data_volume": text_cells[2],
-                        "duration": text_cells[3],
-                        "keywords": [text_cells[4]],
-                    }
-                    data.append(formatar_dados(item_data))
+                    rows = await page.query_selector_all("tr[data-row-id]")
 
-            await browser.close()
-            return data
+                    for row in rows:
+                        cells = await row.query_selector_all("td")
+                        if cells:
+                            text_cells = [await cell.inner_text() for cell in cells]
+                            item_data = {
+                                "index": text_cells[0],
+                                "title": text_cells[1],
+                                "data_volume": text_cells[2],
+                                "duration": text_cells[3],
+                                "keywords": [text_cells[4]],
+                            }
+                            data.append(formatar_dados(item_data))
 
-    except Exception as e:
-        print("⚠️ Erro ao buscar dados:", e)
-        raise TrendsFetchError(str(e)) from e
+                    return data
+                finally:
+                    # Garante o fechamento do Chromium mesmo se um timeout ou outra
+                    # exceção ocorrer entre o launch() e o fim do scraping.
+                    await browser.close()
+
+        except Exception as e:
+            print("⚠️ Erro ao buscar dados:", e)
+            raise TrendsFetchError(str(e)) from e
